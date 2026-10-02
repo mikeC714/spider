@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 
 
 export class Queue extends EventEmitter{
-	private queue:Array<string> = [];	
+	protected queue:Array<string> = [];	
 	constructor(){
 		super();
 		this.init();
@@ -17,6 +17,9 @@ export class Queue extends EventEmitter{
 				return data;
 			}
 		});
+		this.on("empty", () => {
+			process.stdout.write("Crawling finished");
+		})
 	}
 
 	parse = () => {}
