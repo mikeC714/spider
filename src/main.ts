@@ -15,16 +15,16 @@ async function main(){
 	}
 
 	const shell = new Shell();	
-	const crawl = new Crawl(url, keyWord, Number(concurrency));
+	const crawl = new Crawl(keyWord, Number(concurrency));
 	const spider = new Spider(crawl, shell);
 
 
-	await spider.begin();
+	await spider.begin(url);
 	spider.on("done", (time:number | string) => {
 		process.stdout.write(`Task finished took ${time}`);
 		process.exit(0);
 	});
-}
+};
 
 
 

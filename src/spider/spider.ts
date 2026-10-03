@@ -12,9 +12,10 @@ export class Spider extends EventEmitter{
 		this.shell = shell;
 	}
 
-	public begin = async() => {
+	public begin = async(url:string) => {
 		try{
-			await this.crawl.fetch();
+			const res = await this.crawl.fetch(url);
+			await this.crawl.crawl(res);
 		}catch(e){
 
 		}

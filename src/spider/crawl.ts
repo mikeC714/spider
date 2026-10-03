@@ -1,6 +1,3 @@
-import { Queue } from "./queue.ts";
-
-
 /**
  * Crawl handles majority of the logic for the spider
  *
@@ -15,14 +12,15 @@ import { Queue } from "./queue.ts";
  * 
 */
 
-export class Crawl extends Queue{
+export class Crawl{
 	key:string;
 	concurrent:number;
 	protected bank:Set<string> = new Set(); 
+	protected queue = [];
 	private running:number = 0;
 
 	constructor(key:string, concurrent:number = 1){
-		super();
+		this.queue = [];
 		this.key = key;
 		this.concurrent = concurrent;
 	}
@@ -31,10 +29,9 @@ export class Crawl extends Queue{
 	/**
 	 * Fetch the url returning HTML
 	 * @param {string} url - url will be used to fetch the HTML content
-	 * @return {function} crawl - passing the HTML content to iterate over 
 	*/
 	
-	fetch = async(url:string) => {
+	public fetch = async(url:string) => {
 		try{
 			const res:any = await fetch(url)
 							.then((res:any) => {
@@ -42,9 +39,10 @@ export class Crawl extends Queue{
 									process.exit(0);
 								}
 							});
-			return await this.crawl(res);
+			return res;
 		}catch(e:Error | any){
-			this.emit("err", e);
+			process.stdout.write("FAILURE, failed to fetch", e);
+			process.exit(0);
 		}
 	}
 
@@ -57,12 +55,9 @@ export class Crawl extends Queue{
 	*/
 	
 
-	crawl = async(data:string) => {
+	public crawl = async(data:string) => {
 		try{
-			if(data.length < 0){ 
-				this.emit("empty");
-				return;
-			};
+			if(data.length < 0) return;
 
 			// got data length
 			// if data reached a certain point 
@@ -77,28 +72,73 @@ export class Crawl extends Queue{
 				this.running++;
 			}while(data.length > this.running && this.running < this.concurrent);
 
+			return;
 		}finally{
 			this.running = 0;
 			if(this.queue.length > 0){
 				this.nest(this.queue);
+				this.queue = [];
 			}
 		}
 	}
 
+	/**
+	 * Nest takes in the queued urls to generate workers
+	 *
+	 * nest utilizes the urls array to iterate over and create workers based on the amount of urls
+	 * then we obtain the results using Promise.allSettled to prevent crashing on single failure
+	 * once we have the results we iterate over the results obtaining only the fulfilled
+	 * hatch is then called to fixate only on the HTML content
+	 *
+	 */
 
-	nest = async(urls:Array<string>) => {
+
+	private nest = async(urls:Array<string>) => {
 		if(urls.length < 0 || !urls) return;
+
 		let workers = [];
+		const filter = "fulfilled"; 
+		const filtered:Array<{status:"fulfilled", value:any}> = [];
 
 		try{
 			for(let i = 0; i <= urls.length; i++){
-				workers.push(await this.fetch(urls[i] as string));		
+				workers.push(this.fetch(urls[i] as string));		
 			}
 
-			return await Promise.allSettled(workers);
+			const res:PromiseSettledResult<Array<{status:"fulfilled" | "rejected", value?:any, rejected?:any}>> | any = await Promise.allSettled(workers);
+
+			for(let i = 0; i <= res.length; i++){
+				if(res[i]!.status === filter){
+					filtered.push(res[i]);	
+				}
+			}
+
+			this.hatch(filtered);
+			return;
+
 		}catch(e:Error | any){
 			process.stdout.write("FAILURE. Failed to create workers.", e);
 			process.exit(0);
 		};
-	}
+	};
+
+	/**
+	 * Hatch takes in the fulfilled results from the nest
+	 *
+	 * iterates over their values (HTML content)
+	 * calling this.crawl on each iteration creating a loop throughout the program 
+	 *
+	 */
+	
+	private hatch = async(arr:Array<{status:"fulfilled", value:any}>) => {
+		for(const { value } of arr){
+			await this.crawl(value);
+		};		
+		return;
+	};
+
 }
+
+
+
+
